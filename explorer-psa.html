@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Explorer — PSA (Recherche produit)</title>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b0f17;
+      --panel:rgba(255,255,255,0.06);
+      --panel2:rgba(255,255,255,0.045);
+      --stroke:rgba(255,255,255,0.12);
+      --stroke2:rgba(255,255,255,0.16);
+      --text:rgba(255,255,255,0.92);
+      --muted:rgba(255,255,255,0.62);
+      --muted2:rgba(255,255,255,0.46);
+      --accent:rgba(132,182,255,0.95);
+      --good:rgba(95,255,160,0.92);
+      --bad:rgba(255,110,110,0.92);
+      --shadow:0 16px 40px rgba(0,0,0,0.35);
+      --radius:16px;
+      --radius2:14px;
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      --cellH:34px;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family:var(--font);
+      background:
+        radial-gradient(1200px 700px at 20% -10%, rgba(90,140,255,0.16), transparent 60%),
+        radial-gradient(1100px 800px at 110% 20%, rgba(255,120,200,0.10), transparent 55%),
+        radial-gradient(900px 700px at 60% 110%, rgba(130,255,200,0.08), transparent 55%),
+        var(--bg);
+      color:var(--text);
+      overflow:hidden;
+    }
+
+    .topbar{
+      height:66px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 18px;
+      border-bottom:1px solid var(--stroke);
+      background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      backdrop-filter: blur(10px);
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 420px;
+    }
+    .logo{
+      width:38px;height:38px;border-radius:14px;
+      background: linear-gradient(135deg, rgba(132,182,255,0.95), rgba(255,125,206,0.65));
+      box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+      border:1px solid rgba(255,255,255,0.15);
+      flex:0 0 auto;
+    }
+    .titleWrap{ display:flex; flex-direction:column; line-height:1.15; }
+    .title{ font-weight:1000; letter-spacing:0.2px; font-size:14px; }
+    .subtitle{ font-size:12px; color:var(--muted); }
+
+    .actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .btn{
+      height:38px;
+      padding:0 14px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color:var(--text);
+      font-weight:900;
+      font-size:12px;
+      display:inline-flex;
+      align-items:center;
+      gap:9px;
+      cursor:pointer;
+      user-select:none;
+      text-decoration:none;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    }
+    .btn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.09); }
+    .btn:active{ transform: translateY(0px); }
+    .btn.primary{ background: linear-gradient(135deg, rgba(132,182,255,0.22), rgba(255,125,206,0.12)); border-color: rgba(132,182,255,0.30); }
+    .btn.ghost{ background: rgba(255,255,255,0.04); }
+
+    .fileInput{ display:none; }
+
+    .shell{
+      height: calc(100% - 66px);
+      padding:16px;
+      display:grid;
+      grid-template-rows: auto 1fr;
+      gap:12px;
+    }
+
+    .card{
+      border:1px solid var(--stroke);
+      background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      overflow:hidden;
+    }
+
+    .meta{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:12px 14px;
+      border-bottom:1px solid var(--stroke);
+      background: rgba(0,0,0,0.18);
+      flex-wrap:wrap;
+    }
+
+    .metaLeft{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      height:30px;
+      padding:0 10px;
+      border-radius:999px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,0.04);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .pill strong{ color:var(--text); font-weight:1000; }
+
+    .row2{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:12px 14px;
+    }
+
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:260px;
+    }
+    label{
+      font-size:11px;
+      color:var(--muted);
+      font-weight:900;
+      letter-spacing:0.2px;
+    }
+    input, select{
+      height:40px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+      color:var(--text);
+      padding:0 12px;
+      outline:none;
+      font-size:13px;
+      font-weight:800;
+    }
+    input::placeholder{ color: var(--muted2); font-weight:700; }
+
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+      padding:0 14px 12px;
+    }
+    .hint span{
+      color: rgba(255,255,255,0.82);
+      font-weight:900;
+    }
+
+    .status{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+      font-weight:900;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:99px;
+      background: rgba(255,255,255,0.25);
+      border:1px solid rgba(255,255,255,0.16);
+    }
+    .ok .dot{ background: rgba(95,255,160,0.65); border-color: rgba(95,255,160,0.35); }
+    .ko .dot{ background: rgba(255,110,110,0.65); border-color: rgba(255,110,110,0.35); }
+
+    .tableScroller{
+      height:100%;
+      overflow:auto;
+      border-top:1px solid rgba(255,255,255,0.06);
+    }
+
+    table{
+      border-collapse:separate;
+      border-spacing:0;
+      width:100%;
+      font-size:12px;
+    }
+
+    thead th{
+      position:sticky;
+      top:0;
+      z-index:5;
+      background: rgba(10,15,23,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom:1px solid var(--stroke);
+      text-align:left;
+      color: rgba(255,255,255,0.78);
+      font-weight:1000;
+      letter-spacing:0.2px;
+    }
+
+    th, td{
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      padding:8px 10px;
+      height: var(--cellH);
+      white-space:nowrap;
+      vertical-align:middle;
+    }
+
+    tbody tr:hover td{ background: rgba(255,255,255,0.03); }
+
+    .num{ text-align:right; font-variant-numeric: tabular-nums; font-weight:1000; }
+    .mutedCell{ color: rgba(255,255,255,0.70); font-weight:900; }
+    .small{ font-size:11px; color: var(--muted); font-weight:800; }
+
+    .empty{
+      padding:14px;
+      color:var(--muted);
+      font-weight:900;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div class="titleWrap">
+        <div class="title">Explorer — PSA</div>
+        <div class="subtitle">Recherche produit → clients à appeler (référence / désignation)</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <input id="fileInput" class="fileInput" type="file" accept=".xlsx,.xls" />
+      <button class="btn primary" id="btnReload">Recharger psadata.xlsx</button>
+      <button class="btn ghost" id="btnExportXlsx">Exporter résultats XLSX</button>
+      <button class="btn ghost" id="btnExportCsv">Exporter résultats CSV</button>
+      <button class="btn ghost" id="btnReset">Reset cache</button>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="card">
+      <div class="meta">
+        <div class="metaLeft">
+          <div class="pill">Source : <strong id="srcLabel">—</strong></div>
+          <div class="pill">Lignes base : <strong id="rowsLabel">0</strong></div>
+          <div class="pill">Clients match : <strong id="matchLabel">0</strong></div>
+          <div class="pill">Qté totale : <strong id="qtyLabel">0</strong></div>
+        </div>
+        <div class="status ko" id="status">
+          <span class="dot"></span>
+          <span id="statusText">En attente du fichier…</span>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="field" style="min-width:340px;">
+          <label>Recherche</label>
+          <input id="q" placeholder="Tape une référence (ex: 123456) ou un nom produit…" />
+        </div>
+
+        <div class="field" style="min-width:240px;">
+          <label>Mode</label>
+          <select id="mode">
+            <option value="auto">Auto (Réf + Désignation)</option>
+            <option value="ref">Référence uniquement</option>
+            <option value="des">Désignation uniquement</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:220px;">
+          <label>Type de match</label>
+          <select id="matchType">
+            <option value="contains">Contient</option>
+            <option value="starts">Commence par</option>
+            <option value="exact">Exact</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:220px;">
+          <label>Min quantité (filtre)</label>
+          <input id="minQty" type="number" value="0" min="0" step="1" />
+        </div>
+
+        <div class="field" style="min-width:160px;">
+          <label>&nbsp;</label>
+          <button class="btn primary" id="btnSearch" style="justify-content:center;">Rechercher</button>
+        </div>
+      </div>
+
+      <div class="hint">
+        Fichier lu automatiquement : <span>psadata.xlsx</span> (GitHub Pages OK). Colonnes attendues :
+        <span>N° client Interne</span>, <span>Nom du client</span>, <span>Reference Produits</span>, <span>Quantité Payante servie</span>, <span>Désignation</span>.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tableScroller">
+        <table id="table">
+          <thead>
+            <tr>
+              <th style="width:180px;">N° client interne</th>
+              <th>Nom du client</th>
+              <th style="width:140px;">Quantité</th>
+              <th>Désignations trouvées</th>
+              <th style="width:220px;">Références trouvées</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="5" class="empty">Aucun résultat pour le moment.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // =========================
+  // CONFIG
+  // =========================
+  const FILE_NAME = "psadata.xlsx";
+  const CACHE_KEY = "PSA_DATA_CACHE_V1";
+
+  // =========================
+  // DOM
+  // =========================
+  const el = {
+    fileInput: document.getElementById("fileInput"),
+    btnReload: document.getElementById("btnReload"),
+    btnExportXlsx: document.getElementById("btnExportXlsx"),
+    btnExportCsv: document.getElementById("btnExportCsv"),
+    btnReset: document.getElementById("btnReset"),
+
+    srcLabel: document.getElementById("srcLabel"),
+    rowsLabel: document.getElementById("rowsLabel"),
+    matchLabel: document.getElementById("matchLabel"),
+    qtyLabel: document.getElementById("qtyLabel"),
+    status: document.getElementById("status"),
+    statusText: document.getElementById("statusText"),
+
+    q: document.getElementById("q"),
+    mode: document.getElementById("mode"),
+    matchType: document.getElementById("matchType"),
+    minQty: document.getElementById("minQty"),
+    btnSearch: document.getElementById("btnSearch"),
+
+    tbody: document.getElementById("tbody"),
+  };
+
+  // =========================
+  // STATE
+  // =========================
+  let baseRows = [];   // normalized rows
+  let lastResults = []; // aggregated results for export
+
+  // =========================
+  // INIT
+  // =========================
+  const cached = loadJSON(CACHE_KEY, null);
+  if (cached?.rows?.length){
+    baseRows = cached.rows;
+    setStatus(true, `Base chargée (cache) — ${baseRows.length} lignes`);
+    el.srcLabel.textContent = cached.meta?.source || "cache";
+    el.rowsLabel.textContent = String(baseRows.length);
+  } else {
+    setStatus(false, "En attente du fichier…");
+  }
+
+  // auto-fetch
+  autoFetch();
+
+  // =========================
+  // EVENTS
+  // =========================
+  el.btnReload.addEventListener("click", () => el.fileInput.click());
+  el.fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    el.fileInput.value = "";
+    const buf = await file.arrayBuffer();
+    parseExcel(buf, `manuel (${file.name || FILE_NAME})`);
+  });
+
+  el.btnReset.addEventListener("click", () => {
+    if (!confirm("Supprimer le cache local de la base PSA ?")) return;
+    localStorage.removeItem(CACHE_KEY);
+    baseRows = [];
+    lastResults = [];
+    el.srcLabel.textContent = "—";
+    el.rowsLabel.textContent = "0";
+    renderEmpty("Cache supprimé. Recharge le fichier.");
+    setStatus(false, "Cache supprimé. Recharge psadata.xlsx.");
+  });
+
+  el.btnSearch.addEventListener("click", runSearch);
+  el.q.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") runSearch();
+  });
+
+  el.btnExportCsv.addEventListener("click", exportCSV);
+  el.btnExportXlsx.addEventListener("click", exportXLSX);
+
+  // =========================
+  // AUTO FETCH (GitHub Pages OK)
+  // =========================
+  async function autoFetch(){
+    try{
+      const res = await fetch(FILE_NAME, { cache: "no-store" });
+      if (!res.ok){
+        // si cache existe, on ne bloque pas
+        if (!baseRows.length) setStatus(false, `Fetch auto KO (${res.status}). Mets ${FILE_NAME} au même niveau que la page.`);
+        return;
+      }
+      const buf = await res.arrayBuffer();
+      parseExcel(buf, `auto (${FILE_NAME})`);
+    }catch(err){
+      if (!baseRows.length) setStatus(false, "Fetch auto impossible (serveur requis).");
+    }
+  }
+
+  // =========================
+  // PARSE + NORMALIZE
+  // =========================
+  function parseExcel(arrayBuffer, sourceLabel){
+    try{
+      const wb = XLSX.read(arrayBuffer, { type: "array" });
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      if (!raw.length){
+        setStatus(false, "Fichier vide.");
+        renderEmpty("Fichier vide.");
+        return;
+      }
+
+      // map headers tolerant
+      const headerMap = buildHeaderMap(raw[0]);
+
+      const colClientInt = findCol(headerMap, ["n° client interne","no client interne","n client interne","numero client interne","n° client"]);
+      const colClientName = findCol(headerMap, ["nom du client","nom client","client"]);
+      const colRef = findCol(headerMap, ["reference produits","référence produits","reference produit","référence produit","ref produit","ref"]);
+      const colQty = findCol(headerMap, ["quantité payante servie","quantite payante servie","quantité","quantite"]);
+      const colDes = findCol(headerMap, ["désignation","designation","design"]);
+
+      const missing = [
+        !colClientInt ? "N° client Interne" : null,
+        !colClientName ? "Nom du client" : null,
+        !colRef ? "Reference Produits" : null,
+        !colQty ? "Quantité Payante servie" : null,
+        !colDes ? "Désignation" : null,
+      ].filter(Boolean);
+
+      if (missing.length){
+        setStatus(false, "Colonnes manquantes : " + missing.join(", "));
+        renderEmpty("Colonnes manquantes dans le fichier.");
+        return;
+      }
+
+      baseRows = raw.map(r => ({
+        clientInternal: String(r[colClientInt] ?? "").trim(),
+        clientName: String(r[colClientName] ?? "").trim(),
+        ref: String(r[colRef] ?? "").trim(),
+        des: String(r[colDes] ?? "").trim(),
+        qty: toNumber(r[colQty]),
+      }))
+      .filter(x => (x.clientInternal || x.clientName) && (x.ref || x.des));
+
+      saveJSON(CACHE_KEY, {
+        meta: { source: sourceLabel, sheet: sheetName, updatedAt: new Date().toISOString(), file: FILE_NAME },
+        rows: baseRows
+      });
+
+      el.srcLabel.textContent = sourceLabel;
+      el.rowsLabel.textContent = String(baseRows.length);
+
+      setStatus(true, `Base OK — ${baseRows.length} lignes`);
+      // auto-run if query already typed
+      if ((el.q.value || "").trim()) runSearch();
+      else renderEmpty("Base chargée. Lance une recherche.");
+    }catch(err){
+      console.error(err);
+      setStatus(false, "Erreur lecture Excel.");
+      renderEmpty("Erreur lecture Excel.");
+    }
+  }
+
+  // =========================
+  // SEARCH
+  // =========================
+  function runSearch(){
+    const query = (el.q.value || "").trim();
+    if (!query){
+      renderEmpty("Tape une référence ou une désignation puis “Rechercher”.");
+      el.matchLabel.textContent = "0";
+      el.qtyLabel.textContent = "0";
+      lastResults = [];
+      return;
+    }
+    if (!baseRows.length){
+      renderEmpty("Base non chargée. Mets psadata.xlsx à côté ou clique “Recharger”.");
+      return;
+    }
+
+    const mode = el.mode.value; // auto/ref/des
+    const matchType = el.matchType.value; // contains/starts/exact
+    const minQty = Math.max(0, Number(el.minQty.value || 0));
+
+    const qNorm = norm(query);
+
+    function matches(fieldValue){
+      const v = norm(fieldValue);
+      if (!v) return false;
+      if (matchType === "exact") return v === qNorm;
+      if (matchType === "starts") return v.startsWith(qNorm);
+      return v.includes(qNorm);
+    }
+
+    // filter rows by query
+    const filtered = baseRows.filter(r => {
+      const okRef = (mode === "ref" || mode === "auto") ? matches(r.ref) : false;
+      const okDes = (mode === "des" || mode === "auto") ? matches(r.des) : false;
+      return okRef || okDes;
+    });
+
+    // aggregate by client (id = internal + name)
+    const agg = new Map();
+    for (const r of filtered){
+      const key = makeClientId(r.clientInternal, r.clientName);
+      if (!agg.has(key)){
+        agg.set(key, {
+          clientInternal: r.clientInternal,
+          clientName: r.clientName,
+          qty: 0,
+          refs: new Set(),
+          dess: new Set(),
+        });
+      }
+      const it = agg.get(key);
+      it.qty += r.qty;
+      if (r.ref) it.refs.add(r.ref);
+      if (r.des) it.dess.add(r.des);
+    }
+
+    // build results + apply minQty filter
+    let results = Array.from(agg.values())
+      .filter(x => x.qty >= minQty)
+      .sort((a,b) => b.qty - a.qty);
+
+    lastResults = results.map(x => ({
+      "N° client Interne": x.clientInternal,
+      "Nom du client": x.clientName,
+      "Quantité": Math.round(x.qty),
+      "Désignations trouvées": Array.from(x.dess).slice(0, 6).join(" | "),
+      "Références trouvées": Array.from(x.refs).slice(0, 10).join(" | "),
+    }));
+
+    // stats
+    const totalQty = results.reduce((s,x)=>s+x.qty,0);
+    el.matchLabel.textContent = String(results.length);
+    el.qtyLabel.textContent = String(Math.round(totalQty));
+
+    // render
+    renderResults(results, query, mode);
+  }
+
+  function renderResults(results){
+    if (!results.length){
+      renderEmpty("Aucun client trouvé pour cette recherche.");
+      return;
+    }
+
+    const rowsHtml = results.map(r => {
+      const refs = Array.from(r.refs).slice(0, 10).join(" | ");
+      const dess = Array.from(r.dess).slice(0, 6).join(" | ");
+      return `
+        <tr>
+          <td class="mutedCell">${esc(r.clientInternal || "")}</td>
+          <td>${esc(r.clientName || "")}</td>
+          <td class="num">${Math.round(r.qty)}</td>
+          <td class="small">${esc(dess || "—")}</td>
+          <td class="small">${esc(refs || "—")}</td>
+        </tr>
+      `;
+    }).join("");
+
+    el.tbody.innerHTML = rowsHtml;
+  }
+
+  function renderEmpty(msg){
+    el.tbody.innerHTML = `<tr><td colspan="5" class="empty">${esc(msg || "—")}</td></tr>`;
+  }
+
+  // =========================
+  // EXPORTS
+  // =========================
+  function exportCSV(){
+    if (!lastResults.length){
+      alert("Aucun résultat à exporter.");
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(lastResults);
+    const csv = XLSX.utils.sheet_to_csv(ws, { FS: ";", RS: "\n" });
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `explorer_psa_${stamp()}.csv`);
+  }
+
+  function exportXLSX(){
+    if (!lastResults.length){
+      alert("Aucun résultat à exporter.");
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(lastResults);
+    XLSX.utils.book_append_sheet(wb, ws, "Résultats");
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    downloadBlob(
+      new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `explorer_psa_${stamp()}.xlsx`
+    );
+  }
+
+  // =========================
+  // UI STATUS
+  // =========================
+  function setStatus(ok, text){
+    el.status.classList.toggle("ok", !!ok);
+    el.status.classList.toggle("ko", !ok);
+    el.statusText.textContent = text;
+  }
+
+  // =========================
+  // HELPERS
+  // =========================
+  function loadJSON(key, fallback){
+    try{
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    }catch{
+      return fallback;
+    }
+  }
+  function saveJSON(key, val){
+    localStorage.setItem(key, JSON.stringify(val));
+  }
+
+  function buildHeaderMap(sampleRow){
+    const map = {};
+    for (const k of Object.keys(sampleRow || {})){
+      map[norm(k)] = k;
+    }
+    return map;
+  }
+
+  function findCol(headerMap, candidates){
+    for (const c of candidates){
+      const nk = norm(c);
+      if (headerMap[nk]) return headerMap[nk];
+    }
+    return null;
+  }
+
+  function toNumber(v){
+    if (v === null || v === undefined) return 0;
+    if (typeof v === "number") return isFinite(v) ? v : 0;
+    const s = String(v).trim();
+    if (!s) return 0;
+    const normed = s.replace(/\s/g,"").replace(",",".");
+    const n = Number(normed);
+    return isFinite(n) ? n : 0;
+  }
+
+  function norm(s){
+    return String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  }
+
+  function makeClientId(clientInternal, clientName){
+    const a = norm(clientInternal).replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+    const b = norm(clientName).replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+    return (a || "noid") + "__" + (b || "noname");
+  }
+
+  function stamp(){
+    const d = new Date();
+    const pad = x => String(x).padStart(2,"0");
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  }
+
+  function downloadBlob(blob, filename){
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  }
+
+  function esc(str){
+    return String(str ?? "").replace(/[&<>"']/g, s => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[s]));
+  }
+})();
+</script>
+</body>
+</html>
