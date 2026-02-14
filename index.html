@@ -74,6 +74,18 @@
   .btn:hover{background: rgba(255,255,255,0.08)}
   .btn:active{transform: scale(.98)}
 
+  /* ✅ Bouton discret vers la page Recherche Produit */
+  .btnMini{
+    padding:8px 10px;
+    font-size:14px;
+    border-radius:12px;
+    background: rgba(255,255,255,0.04);
+  }
+  .btnMini:hover{
+    background: rgba(124,58,237,.18);
+    transform: translateY(-1px);
+  }
+
   .card{
     background: var(--panel);
     border: 1px solid var(--line);
@@ -240,7 +252,12 @@
         <span>Recherche mobile-friendly — Nom ou N° client interne</span>
       </div>
     </div>
-    <button class="btn" id="reloadBtn">Recharger</button>
+
+    <!-- ✅ Zone actions à droite (bouton discret + reload) -->
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btnMini" id="goProductSearch" title="Recherche produit">🔎</button>
+      <button class="btn" id="reloadBtn">Recharger</button>
+    </div>
   </div>
 
   <!-- Recherche -->
@@ -252,7 +269,7 @@
 
     <div class="meta">
       <span class="chip"><span class="dot" id="dotStatus"></span><span id="status">Chargement…</span></span>
-      <span class="chip"><span class="dot ok"></span><span>Fichier : <b>data.xlsx</b></span></span>
+      <span class="chip"><span class="dot ok"></span><span>Fichier : <b>PSAdata.xlsx</b></span></span>
       <span class="chip"><span class="dot"></span><span>Recherche : <b>Nom du client</b> OU <b>N° client Interne</b></span></span>
     </div>
   </div>
@@ -303,7 +320,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <script>
-  const EXCEL_URL = "./data.xlsx";
+  const EXCEL_URL = "./PSAdata.xlsx";
 
   const COL_ID    = "N° client Interne";
   const COL_NAME  = "Nom du client";
@@ -426,7 +443,7 @@
       const label = p.name ? p.name : "(Sans nom)";
       const hint = p.id ? `N° ${p.id}` : "N° —";
       return `
-        <div class="sItem" data-value="${escapeHtml(p.id || p.name)}">
+        <div class="sItem" PSAdata-value="${escapeHtml(p.id || p.name)}">
           <div class="sName">${highlightMatch(label, q)}</div>
           <div class="sHint">${escapeHtml(hint)}</div>
         </div>
@@ -435,7 +452,7 @@
 
     $("suggestBox").querySelectorAll(".sItem").forEach(el => {
       el.addEventListener("click", () => {
-        const value = el.getAttribute("data-value");
+        const value = el.getAttribute("PSAdata-value");
         $("searchInput").value = value;
         closeSuggest();
         runSearch();
@@ -470,7 +487,7 @@
       console.error(e);
       setStatus("warn", `Impossible de charger ${EXCEL_URL}`);
       $("agg").innerHTML = `<div class="empty">⚠️ Excel introuvable ou bloqué.</div>`;
-      $("results").innerHTML = `<div class="empty">Vérifie que <b>data.xlsx</b> est bien à côté de <b>index.html</b>.</div>`;
+      $("results").innerHTML = `<div class="empty">Vérifie que <b>PSAdata.xlsx</b> est bien à côté de <b>index.html</b>.</div>`;
     }
   }
 
@@ -625,6 +642,11 @@
     await loadExcel();
     closeSuggest();
     runSearch();
+  });
+
+  /* ✅ Navigation vers la page "Recherche produit" (discret, sans side effects) */
+  $("goProductSearch").addEventListener("click", () => {
+    window.location.href = "./explorer-psa.html";
   });
 
   loadExcel();
