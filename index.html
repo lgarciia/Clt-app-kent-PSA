@@ -269,7 +269,7 @@
 
     <div class="meta">
       <span class="chip"><span class="dot" id="dotStatus"></span><span id="status">Chargement…</span></span>
-      <span class="chip"><span class="dot ok"></span><span>Fichier : <b>PSAdata.xlsx</b></span></span>
+      <span class="chip"><span class="dot ok"></span><span>Fichier : <b>psadata.xlsx</b></span></span>
       <span class="chip"><span class="dot"></span><span>Recherche : <b>Nom du client</b> OU <b>N° client Interne</b></span></span>
     </div>
   </div>
@@ -320,7 +320,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <script>
-  const EXCEL_URL = "./PSAdata.xlsx";
+  const EXCEL_URL = "./psadata.xlsx";
 
   const COL_ID    = "N° client Interne";
   const COL_NAME  = "Nom du client";
@@ -487,7 +487,7 @@
       console.error(e);
       setStatus("warn", `Impossible de charger ${EXCEL_URL}`);
       $("agg").innerHTML = `<div class="empty">⚠️ Excel introuvable ou bloqué.</div>`;
-      $("results").innerHTML = `<div class="empty">Vérifie que <b>PSAdata.xlsx</b> est bien à côté de <b>index.html</b>.</div>`;
+      $("results").innerHTML = `<div class="empty">Vérifie que <b>psadata.xlsx</b> est bien à côté de <b>index.html</b>.</div>`;
     }
   }
 
