@@ -297,9 +297,11 @@
       <input id="fileInput" class="fileInput" type="file" accept=".xlsx,.xls" />
 
       <!-- Discret + mobile -->
-
+      <button class="btn btnMini" id="btnPickFile" title="Charger un fichier">📁</button>
       <button class="btn primary" id="btnReload">Recharger psadata.xlsx</button>
-
+      <button class="btn ghost" id="btnExportXlsx">XLSX</button>
+      <button class="btn ghost" id="btnExportCsv">CSV</button>
+      <button class="btn ghost" id="btnReset">Reset</button>
     </div>
   </div>
 
@@ -352,6 +354,9 @@
       Colonnes attendues (tolérant sur la casse/accents) :
       <code>N° client Interne</code>, <code>Nom du client</code>, <code>Reference Produits</code>,
       <code>Quantité Payante servie</code>, <code>Désignation</code>.
+      <br>
+      <b>GitHub Pages :</b> le fichier doit être <u>au même niveau</u> que cette page (même dossier) et
+      respecter la casse exacte (<code>psadata.xlsx</code> ≠ <code>PSAData.xlsx</code>).
     </div>
   </div>
 
@@ -397,7 +402,7 @@
   // CONFIG
   // =========================
   const FILE_NAME = "psadata.xlsx";
-  const CACHE_KEY = "PSA_DATA_CACHE_V1";
+  const CACHE_KEY = "PSA_DATA_CACHE_V2"; // bump version (avoid stale GitHub cache)
 
   // =========================
   // DOM
@@ -430,9 +435,9 @@
   // =========================
   // STATE
   // =========================
-  let baseRows = [];        // normalized rows
-  let lastResults = [];     // aggregated results for export
-  let lastAggRaw = [];      // full agg objects (for render)
+  let baseRows = [];
+  let lastResults = [];
+  let lastAggRaw = [];
 
   // =========================
   // INIT (cache)
@@ -480,17 +485,14 @@
     setStatus("warn", "Cache supprimé. Recharge psadata.xlsx.");
   });
 
-  el.btnSearch.addEventListener("click", runSearch);
-  el.q.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") runSearch();
-  });
+  el.btnSearch.addEventListener("click", () => runSearch(false));
+  el.q.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(false); });
 
-  // (option) recherche “live” légère sur mobile
+  // recherche live légère
   let tt = null;
   el.q.addEventListener("input", () => {
     clearTimeout(tt);
     tt = setTimeout(() => {
-      // si base OK et au moins 2 chars -> run
       const v = (el.q.value || "").trim();
       if (v.length >= 2 && baseRows.length) runSearch(true);
       if (!v.length) {
@@ -507,15 +509,20 @@
   el.btnExportXlsx.addEventListener("click", exportXLSX);
 
   // =========================
-  // AUTO FETCH
+  // AUTO FETCH (robust for GitHub Pages + anti-cache)
   // =========================
   async function autoFetch(forceToast){
     try{
       setStatus("warn", `Chargement auto : ${FILE_NAME}…`);
-      const res = await fetch(FILE_NAME, { cache: "no-store" });
+
+      // Robust URL in subfolders + anti-cache
+      const url = new URL(FILE_NAME, window.location.href);
+      url.searchParams.set("v", Date.now().toString());
+
+      const res = await fetch(url.toString(), { cache: "no-store" });
       if (!res.ok){
         if (!baseRows.length){
-          setStatus("bad", `Fetch auto KO (${res.status}). Mets ${FILE_NAME} au même niveau que la page.`);
+          setStatus("bad", `Fetch auto KO (${res.status}). Vérifie le chemin / publication de ${FILE_NAME}.`);
           renderEmpty(`Excel introuvable : ${FILE_NAME}`);
         } else {
           setStatus("ok", `Base OK (cache) — fetch auto KO (${res.status})`);
@@ -523,11 +530,23 @@
         }
         return;
       }
+
       const buf = await res.arrayBuffer();
+
+      // Verify XLSX signature (PK) to avoid HTML/404 content
+      const u8 = new Uint8Array(buf);
+      const sig = String.fromCharCode(u8[0]||0, u8[1]||0);
+      if (sig !== "PK"){
+        const preview = new TextDecoder().decode(u8.slice(0, 200));
+        console.warn("Contenu non XLSX. Début:", preview);
+        throw new Error("Le fichier récupéré n'est pas un .xlsx (souvent HTML/404/cache).");
+      }
+
       parseExcel(buf, `auto (${FILE_NAME})`);
     }catch(err){
+      console.error(err);
       if (!baseRows.length){
-        setStatus("bad", "Fetch auto impossible (serveur requis / CORS).");
+        setStatus("bad", "Fetch auto impossible (chemin GitHub / cache / fichier non publié).");
         renderEmpty("Fetch auto impossible. Charge un fichier via 📁.");
       } else {
         setStatus("ok", "Base OK (cache) — fetch auto impossible");
@@ -537,29 +556,38 @@
   }
 
   // =========================
-  // PARSE + NORMALIZE
+  // PARSE + NORMALIZE (with sheet selection best)
   // =========================
   function parseExcel(arrayBuffer, sourceLabel){
     try{
       const wb = XLSX.read(arrayBuffer, { type: "array" });
-      const sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
+      // pick the most populated sheet (safer)
+      let bestName = wb.SheetNames[0];
+      let best = [];
+      for (const name of wb.SheetNames){
+        const ws = wb.Sheets[name];
+        const r = XLSX.utils.sheet_to_json(ws, { defval: "", blankrows:false });
+        if (r.length > best.length){
+          best = r;
+          bestName = name;
+        }
+      }
+
+      const raw = best;
       if (!raw.length){
         setStatus("bad", "Fichier vide.");
         renderEmpty("Fichier vide.");
         return;
       }
 
-      // map headers tolerant
       const headerMap = buildHeaderMap(raw[0]);
 
-      const colClientInt = findCol(headerMap, ["n° client interne","no client interne","n client interne","numero client interne","n° client"]);
+      const colClientInt  = findCol(headerMap, ["n° client interne","no client interne","n client interne","numero client interne","n° client"]);
       const colClientName = findCol(headerMap, ["nom du client","nom client","client"]);
-      const colRef = findCol(headerMap, ["reference produits","référence produits","reference produit","référence produit","ref produit","ref"]);
-      const colQty = findCol(headerMap, ["quantité payante servie","quantite payante servie","quantité","quantite"]);
-      const colDes = findCol(headerMap, ["désignation","designation","design"]);
+      const colRef        = findCol(headerMap, ["reference produits","référence produits","reference produit","référence produit","ref produit","ref"]);
+      const colQty        = findCol(headerMap, ["quantité payante servie","quantite payante servie","quantité","quantite"]);
+      const colDes        = findCol(headerMap, ["désignation","designation","design"]);
 
       const missing = [
         !colClientInt ? "N° client Interne" : null,
@@ -576,16 +604,19 @@
       }
 
       baseRows = raw.map(r => ({
-        clientInternal: String(r[colClientInt] ?? "").trim(),
-        clientName: String(r[colClientName] ?? "").trim(),
-        ref: String(r[colRef] ?? "").trim(),
-        des: String(r[colDes] ?? "").trim(),
+        clientInternal: cleanId(r[colClientInt]),
+        clientName: cleanText(r[colClientName]),
+        ref: cleanRef(r[colRef]),
+        des: cleanText(r[colDes]),
         qty: toNumber(r[colQty]),
+        // precomputed normalized fields for speed + consistent GitHub/local
+        refN: norm(cleanRef(r[colRef])),
+        desN: norm(cleanText(r[colDes])),
       }))
       .filter(x => (x.clientInternal || x.clientName) && (x.ref || x.des));
 
       saveJSON(CACHE_KEY, {
-        meta: { source: sourceLabel, sheet: sheetName, updatedAt: new Date().toISOString(), file: FILE_NAME },
+        meta: { source: sourceLabel, sheet: bestName, updatedAt: new Date().toISOString(), file: FILE_NAME },
         rows: baseRows
       });
 
@@ -593,8 +624,7 @@
       el.rowsLabel.textContent = String(baseRows.length);
 
       setStatus("ok", `Base OK — ${baseRows.length} lignes`);
-      // auto-run if query already typed
-      if ((el.q.value || "").trim()) runSearch();
+      if ((el.q.value || "").trim()) runSearch(false);
       else renderEmpty("Base chargée. Lance une recherche.");
     }catch(err){
       console.error(err);
@@ -604,7 +634,7 @@
   }
 
   // =========================
-  // SEARCH
+  // SEARCH (more robust normalization)
   // =========================
   function runSearch(isSilent){
     const query = (el.q.value || "").trim();
@@ -624,19 +654,20 @@
     const mode = el.mode.value;          // auto/ref/des
     const matchType = el.matchType.value; // contains/starts/exact
     const minQty = Math.max(0, Number(el.minQty.value || 0));
-    const qNorm = norm(query);
 
-    function matches(fieldValue){
-      const v = norm(fieldValue);
-      if (!v) return false;
-      if (matchType === "exact") return v === qNorm;
-      if (matchType === "starts") return v.startsWith(qNorm);
-      return v.includes(qNorm);
+    const qRefNorm = norm(cleanRef(query));
+    const qDesNorm = norm(cleanText(query));
+
+    function matchNorm(vNorm, qNorm){
+      if (!vNorm || !qNorm) return false;
+      if (matchType === "exact") return vNorm === qNorm;
+      if (matchType === "starts") return vNorm.startsWith(qNorm);
+      return vNorm.includes(qNorm);
     }
 
     const filtered = baseRows.filter(r => {
-      const okRef = (mode === "ref" || mode === "auto") ? matches(r.ref) : false;
-      const okDes = (mode === "des" || mode === "auto") ? matches(r.des) : false;
+      const okRef = (mode === "ref" || mode === "auto") ? matchNorm(r.refN, qRefNorm) : false;
+      const okDes = (mode === "des" || mode === "auto") ? matchNorm(r.desN, qDesNorm) : false;
       return okRef || okDes;
     });
 
@@ -677,7 +708,6 @@
     el.qtyLabel.textContent = String(Math.round(totalQty));
 
     if (!isSilent){
-      // petit feedback statut, sans spam
       setStatus("ok", `Résultats : ${results.length} clients — Qté ${Math.round(totalQty)}`);
     }
 
@@ -730,7 +760,6 @@
       `;
     }).join("");
 
-    // bind copy
     el.results.querySelectorAll("[data-copy]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const txt = btn.getAttribute("data-copy") || "";
@@ -739,7 +768,6 @@
           await navigator.clipboard.writeText(txt);
           pulseStatus("ok", "Copié ✅");
         }catch{
-          // fallback
           fallbackCopy(txt);
           pulseStatus("ok", "Copié ✅");
         }
@@ -784,7 +812,6 @@
   // =========================
   function setStatus(type, text){
     el.statusText.textContent = text;
-
     el.dotStatus.classList.remove("ok","warn","bad");
     if (type === "ok") el.dotStatus.classList.add("ok");
     else if (type === "bad") el.dotStatus.classList.add("bad");
@@ -797,7 +824,6 @@
     const prev = el.statusText.textContent;
     setStatus(type, text);
     statusTimer = setTimeout(() => {
-      // on revient à un statut stable
       if (baseRows.length) setStatus("ok", `Base OK — ${baseRows.length} lignes`);
       else setStatus("warn", prev || "—");
     }, 900);
@@ -832,6 +858,12 @@
       const nk = norm(c);
       if (headerMap[nk]) return headerMap[nk];
     }
+    // fallback partial
+    for (const c of candidates){
+      const nk = norm(c);
+      const foundKey = Object.keys(headerMap).find(h => h.includes(nk) || nk.includes(h));
+      if (foundKey) return headerMap[foundKey];
+    }
     return null;
   }
 
@@ -847,10 +879,32 @@
 
   function norm(s){
     return String(s || "")
+      .replace(/\u00A0/g, " ")          // NBSP
+      .replace(/\u202F/g, " ")          // narrow NBSP
       .trim()
       .toLowerCase()
       .replace(/\s+/g, " ")
       .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  }
+
+  function cleanText(v){
+    return String(v ?? "")
+      .replace(/\u00A0/g, " ")
+      .replace(/\u202F/g, " ")
+      .trim()
+      .replace(/\s+/g," ");
+  }
+
+  function cleanId(v){
+    // keep as string, remove .0 for numeric ids coming from Excel
+    const s = cleanText(v);
+    return s.replace(/\.0$/, "");
+  }
+
+  function cleanRef(v){
+    // normalize refs like 12345.0 -> 12345, trim, collapse spaces
+    const s = cleanText(v);
+    return s.replace(/\.0$/, "");
   }
 
   function makeClientId(clientInternal, clientName){
@@ -882,7 +936,6 @@
     }[s]));
   }
   function escAttr(str){
-    // pour data-copy (attribut HTML)
     return esc(str).replace(/\n/g, "&#10;");
   }
 
@@ -902,4 +955,3 @@
 </script>
 </body>
 </html>
-
